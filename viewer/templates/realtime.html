@@ -346,8 +346,6 @@
         ],
       });
         });
-    const stalePeriodsByKey = {};
-
     setInterval(async () => {
       var newData = {
         city: "{{selectedCity.name}}",
@@ -366,47 +364,26 @@
         });
       var newData = await res.json();
       if (newData.result) {
-        const previousData = data;
         for (const key in newData.result) {
           if (Object.hasOwnProperty.call(newData.result, key)) {
             const element = newData.result[key];
             console.log("Element: ", element);
-            const previousSeries = (previousData[key] && previousData[key].data) ? previousData[key].data : [];
             const currentSeries = element.data || [];
-            const previousLastTs = previousSeries.length > 0 ? previousSeries[previousSeries.length - 1][0] : null;
-            const currentLastTs = currentSeries.length > 0 ? currentSeries[currentSeries.length - 1][0] : null;
-
-            if (stalePeriodsByKey[key] === undefined) {
-              stalePeriodsByKey[key] = 0;
-            }
-
-            if (currentLastTs === null || (previousLastTs !== null && currentLastTs === previousLastTs)) {
-              stalePeriodsByKey[key] += 1;
-            } else {
-              stalePeriodsByKey[key] = 0;
-            }
 
             let blockerElement = document.getElementById('blocker-' + key);
             let minElement = document.getElementById('min-' + key);
             let maxElement = document.getElementById('max-' + key);
             let avgElement = document.getElementById('avg-' + key);
-            if (stalePeriodsByKey[key] > 2) {
-              if (blockerElement) blockerElement.style.display = 'flex';
-              if (minElement) minElement.innerText = "-";
-              if (maxElement) maxElement.innerText = "-";
-              if (avgElement) avgElement.innerText = "-";
-            } else {
-              if (blockerElement) blockerElement.style.display = 'none';
-              if (minElement) minElement.innerText = element.min;
-              if (maxElement) maxElement.innerText = element.max;
-              if (avgElement) avgElement.innerText = element.avg;
-            }
+            if (blockerElement) blockerElement.style.display = 'none';
+            if (minElement) minElement.innerText = element.min;
+            if (maxElement) maxElement.innerText = element.max;
+            if (avgElement) avgElement.innerText = element.avg;
             if (charts[key]) charts[key].update({
               series: [
           {
             type: "line",
             name: "Valor",
-            data: element.data,
+            data: currentSeries,
           },
         ],
             });
