@@ -387,22 +387,21 @@
             }
 
             let blockerElement = document.getElementById('blocker-' + key);
-            let stats = document.getElementsByClassName('stat');
+            let minElement = document.getElementById('min-' + key);
+            let maxElement = document.getElementById('max-' + key);
+            let avgElement = document.getElementById('avg-' + key);
             if (stalePeriodsByKey[key] > 2) {
-              blockerElement.style.display = 'flex';
-              [].forEach.call(stats, stat => {
-                stat.innerHTML = "-";
-              });
+              if (blockerElement) blockerElement.style.display = 'flex';
+              if (minElement) minElement.innerText = "-";
+              if (maxElement) maxElement.innerText = "-";
+              if (avgElement) avgElement.innerText = "-";
             } else {
-              blockerElement.style.display = 'none';
-              let minElement = document.getElementById('min-' + key);
-              minElement.innerText = element.min;
-              let maxElement = document.getElementById('max-' + key);
-              maxElement.innerText = element.max;
-              let avgElement = document.getElementById('avg-' + key);
-              avgElement.innerText = element.avg;
+              if (blockerElement) blockerElement.style.display = 'none';
+              if (minElement) minElement.innerText = element.min;
+              if (maxElement) maxElement.innerText = element.max;
+              if (avgElement) avgElement.innerText = element.avg;
             }
-;            charts[key].update({
+            if (charts[key]) charts[key].update({
               series: [
           {
             type: "line",
