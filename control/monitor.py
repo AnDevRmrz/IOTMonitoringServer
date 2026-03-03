@@ -25,8 +25,8 @@ def analyze_data():
 
     now = timezone.now()
     window_start = now - timedelta(minutes=ALERT_WINDOW_MINUTES)
-    window_start_ts = int(window_start.timestamp() * 1000000)
-    data = Data.objects.filter(time__gte=window_start_ts, avg_value__isnull=False) \
+    window_start_hour = window_start.replace(minute=0, second=0, microsecond=0)
+    data = Data.objects.filter(base_time__gte=window_start_hour) \
         .select_related('station', 'measurement') \
         .select_related('station__user', 'station__location') \
         .select_related('station__location__city', 'station__location__state',
@@ -48,7 +48,22 @@ def analyze_data():
                 'city': row.station.location.city.name,
                 'user': row.station.user.username,
             }
-        grouped_data[key]['values'].append(row.avg_value)
+
+        row_times = row.times or []
+        row_values = row.values or []
+        max_points = min(len(row_times), len(row_values))
+        for index in range(max_points):
+            sample_second = row_times[index]
+            sample_value = row_values[index]
+
+            if sample_value is None:
+                continue
+
+            sample_time = row.base_time + timedelta(seconds=float(sample_second))
+            if sample_time < window_start:
+                continue
+
+            grouped_data[key]['values'].append(sample_value)
 
     alerts = 0
     reviewed = 0
