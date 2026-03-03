@@ -1,14 +1,20 @@
-from argparse import ArgumentError
 import ssl
-from django.db.models import Avg
-from datetime import timedelta, datetime
-from receiver.models import Data, Measurement
+from datetime import timedelta
+from django.utils import timezone
+from receiver.models import Data
 import paho.mqtt.client as mqtt
 import schedule
 import time
 from django.conf import settings
 
 client = mqtt.Client(settings.MQTT_USER_PUB)
+
+ALERT_WINDOW_MINUTES = 5
+ALERT_MIN_POINTS = 3
+ALERT_MIN_VIOLATIONS = 2
+ALERT_COOLDOWN_MINUTES = 2
+
+_last_alert_sent_at = {}
 
 
 def analyze_data():
@@ -18,44 +24,83 @@ def analyze_data():
 
     print("Calculando alertas...")
 
-    data = Data.objects.filter(
-        base_time__gte=datetime.now() - timedelta(hours=1))
-    aggregation = data.annotate(check_value=Avg('avg_value')) \
+    now = timezone.now()
+    window_start = now - timedelta(minutes=ALERT_WINDOW_MINUTES)
+    data = Data.objects.filter(base_time__gte=window_start, avg_value__isnull=False) \
         .select_related('station', 'measurement') \
         .select_related('station__user', 'station__location') \
         .select_related('station__location__city', 'station__location__state',
                         'station__location__country') \
-        .values('check_value', 'station__user__username',
-                'measurement__name',
-                'measurement__max_value',
-                'measurement__min_value',
-                'station__location__city__name',
-                'station__location__state__name',
-                'station__location__country__name')
+        .order_by('-base_time')
+
+    grouped_data = {}
+    for row in data:
+        key = (row.station_id, row.measurement_id)
+        if key not in grouped_data:
+            grouped_data[key] = {
+                'values': [],
+                'measurement': row.measurement.name,
+                'max_value': row.measurement.max_value,
+                'min_value': row.measurement.min_value,
+                'country': row.station.location.country.name,
+                'state': row.station.location.state.name,
+                'city': row.station.location.city.name,
+                'user': row.station.user.username,
+            }
+        grouped_data[key]['values'].append(row.avg_value)
+
     alerts = 0
-    for item in aggregation:
-        alert = False
+    reviewed = 0
 
-        variable = item["measurement__name"]
-        max_value = item["measurement__max_value"] or 0
-        min_value = item["measurement__min_value"] or 0
+    for key, item in grouped_data.items():
+        values = item['values']
+        if len(values) < ALERT_MIN_POINTS:
+            continue
 
-        country = item['station__location__country__name']
-        state = item['station__location__state__name']
-        city = item['station__location__city__name']
-        user = item['station__user__username']
+        variable = item['measurement']
+        max_value = item['max_value']
+        min_value = item['min_value']
 
-        if item["check_value"] > max_value or item["check_value"] < min_value:
-            alert = True
+        if max_value is None and min_value is None:
+            continue
 
-        if alert:
-            message = "ALERT {} {} {}".format(variable, min_value, max_value)
-            topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
-            print(datetime.now(), "Sending alert to {} {}".format(topic, variable))
-            client.publish(topic, message)
-            alerts += 1
+        violations = 0
+        for value in values:
+            if max_value is not None and value > max_value:
+                violations += 1
+                continue
+            if min_value is not None and value < min_value:
+                violations += 1
 
-    print(len(aggregation), "dispositivos revisados")
+        reviewed += 1
+        if violations < ALERT_MIN_VIOLATIONS:
+            continue
+
+        last_sent_at = _last_alert_sent_at.get(key)
+        if last_sent_at and now - last_sent_at < timedelta(minutes=ALERT_COOLDOWN_MINUTES):
+            continue
+
+        country = item['country']
+        state = item['state']
+        city = item['city']
+        user = item['user']
+        window_average = sum(values) / len(values)
+
+        message = "ALERT {} min={} max={} avg={:.2f} violations={}/{}".format(
+            variable,
+            min_value,
+            max_value,
+            window_average,
+            violations,
+            len(values)
+        )
+        topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
+        print(now, "Sending alert to {} {}".format(topic, variable))
+        client.publish(topic, message)
+        _last_alert_sent_at[key] = now
+        alerts += 1
+
+    print(reviewed, "dispositivos revisados")
     print(alerts, "alertas enviadas")
 
 
