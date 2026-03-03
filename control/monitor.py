@@ -17,10 +17,6 @@ _last_alert_sent_at = {}
 
 
 def analyze_data():
-    # Consulta todos los datos de la última hora, los agrupa por estación y variable
-    # Compara el promedio con los valores límite que están en la base de datos para esa variable.
-    # Si el promedio se excede de los límites, se envia un mensaje de alerta.
-
     print("Calculando alertas...")
 
     now = timezone.now()
@@ -92,21 +88,26 @@ def analyze_data():
 
         last_sent_at = _last_alert_sent_at.get(key)
         if last_sent_at and now - last_sent_at < timedelta(minutes=ALERT_COOLDOWN_MINUTES):
+            print(
+                "[DEBUG] Skip station={} measurement={} variable={} reason=cooldown last_sent_at={} cooldown_minutes={}".format(
+                    station_id,
+                    measurement_id,
+                    variable,
+                    last_sent_at,
+                    ALERT_COOLDOWN_MINUTES
+                )
+            )
             continue
 
         country = item['country']
         state = item['state']
         city = item['city']
         user = item['user']
-        window_average = sum(values) / len(values)
 
-        message = "ALERT {} min={} max={} avg={:.2f} violations={}/{}".format(
+        message = "ALERT {} min={} max={}".format(
             variable,
             min_value,
-            max_value,
-            window_average,
-            violations,
-            len(values)
+            max_value
         )
         topic = '{}/{}/{}/{}/in'.format(country, state, city, user)
         print(now, "Sending alert to {} {}".format(topic, variable))
@@ -165,7 +166,7 @@ def start_cron():
     Inicia el cron que se encarga de ejecutar la función analyze_data cada 5 minutos.
     '''
     print("Iniciando cron...")
-    schedule.every(2).minutes.do(analyze_data)
+    schedule.every(1).minutes.do(analyze_data)
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
