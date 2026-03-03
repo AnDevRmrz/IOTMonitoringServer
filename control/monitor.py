@@ -34,7 +34,6 @@ def analyze_data():
         .order_by('-base_time')
 
     grouped_data = {}
-    print("Revisando {} datos".format(data))
     for row in data:
         key = (row.station_id, row.measurement_id)
         if key not in grouped_data:
@@ -68,7 +67,6 @@ def analyze_data():
     alerts = 0
     reviewed = 0
 
-    print("Revisando {} grupos de datos".format(grouped_data))
     for key, item in grouped_data.items():
         station_id, measurement_id = key
         values = item['values']
@@ -78,53 +76,22 @@ def analyze_data():
         min_value = item['min_value']
 
         if max_value is None and min_value is None:
-            print(
-                "[DEBUG] Skip station={} measurement={} variable={} reason=no_limits".format(
-                    station_id, measurement_id, variable
-                )
-            )
             continue
 
         violations = 0
         for value in values:
             if max_value is not None and value > max_value:
                 violations += 1
-                print(
-                    "[DEBUG] Value station={} measurement={} variable={} value={} > max={} (counted_violation)".format(
-                        station_id, measurement_id, variable, value, max_value
-                    )
-                )
                 continue
             if min_value is not None and value < min_value:
                 violations += 1
 
         reviewed += 1
         if violations < ALERT_MIN_POINTS:
-            print(
-                "[DEBUG] Skip station={} measurement={} variable={} reason=not_enough_out_of_range_points violations={} required={} values_count={} limits=({}, {})".format(
-                    station_id,
-                    measurement_id,
-                    variable,
-                    violations,
-                    ALERT_MIN_POINTS,
-                    len(values),
-                    min_value,
-                    max_value
-                )
-            )
             continue
 
         last_sent_at = _last_alert_sent_at.get(key)
         if last_sent_at and now - last_sent_at < timedelta(minutes=ALERT_COOLDOWN_MINUTES):
-            print(
-                "[DEBUG] Skip station={} measurement={} variable={} reason=cooldown last_sent_at={} cooldown_minutes={}".format(
-                    station_id,
-                    measurement_id,
-                    variable,
-                    last_sent_at,
-                    ALERT_COOLDOWN_MINUTES
-                )
-            )
             continue
 
         country = item['country']
@@ -198,7 +165,7 @@ def start_cron():
     Inicia el cron que se encarga de ejecutar la función analyze_data cada 5 minutos.
     '''
     print("Iniciando cron...")
-    schedule.every(30).seconds.do(analyze_data)
+    schedule.every(2).minutes.do(analyze_data)
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
