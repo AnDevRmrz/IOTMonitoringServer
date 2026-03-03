@@ -25,7 +25,8 @@ def analyze_data():
 
     now = timezone.now()
     window_start = now - timedelta(minutes=ALERT_WINDOW_MINUTES)
-    data = Data.objects.filter(base_time__gte=window_start, avg_value__isnull=False) \
+    window_start_ts = int(window_start.timestamp() * 1000000)
+    data = Data.objects.filter(time__gte=window_start_ts, avg_value__isnull=False) \
         .select_related('station', 'measurement') \
         .select_related('station__user', 'station__location') \
         .select_related('station__location__city', 'station__location__state',
@@ -182,7 +183,7 @@ def start_cron():
     Inicia el cron que se encarga de ejecutar la función analyze_data cada 5 minutos.
     '''
     print("Iniciando cron...")
-    schedule.every(2).minutes.do(analyze_data)
+    schedule.every(30).seconds.do(analyze_data)
     print("Servicio de control iniciado")
     while 1:
         schedule.run_pending()
