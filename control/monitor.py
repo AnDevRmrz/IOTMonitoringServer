@@ -10,8 +10,7 @@ from django.conf import settings
 client = mqtt.Client(settings.MQTT_USER_PUB)
 
 ALERT_WINDOW_MINUTES = 5
-ALERT_MIN_POINTS = 3
-ALERT_MIN_VIOLATIONS = 2
+ALERT_MIN_POINTS = 30
 ALERT_COOLDOWN_MINUTES = 2
 
 _last_alert_sent_at = {}
@@ -57,13 +56,6 @@ def analyze_data():
     for key, item in grouped_data.items():
         station_id, measurement_id = key
         values = item['values']
-        if len(values) < ALERT_MIN_POINTS:
-            print(
-                "[DEBUG] Skip station={} measurement={} reason=insufficient_points points={} required={}".format(
-                    station_id, measurement_id, len(values), ALERT_MIN_POINTS
-                )
-            )
-            continue
 
         variable = item['measurement']
         max_value = item['max_value']
@@ -91,14 +83,14 @@ def analyze_data():
                 violations += 1
 
         reviewed += 1
-        if violations < ALERT_MIN_VIOLATIONS:
+        if violations < ALERT_MIN_POINTS:
             print(
-                "[DEBUG] Skip station={} measurement={} variable={} reason=not_enough_violations violations={} required={} values_count={} limits=({}, {})".format(
+                "[DEBUG] Skip station={} measurement={} variable={} reason=not_enough_out_of_range_points violations={} required={} values_count={} limits=({}, {})".format(
                     station_id,
                     measurement_id,
                     variable,
                     violations,
-                    ALERT_MIN_VIOLATIONS,
+                    ALERT_MIN_POINTS,
                     len(values),
                     min_value,
                     max_value
