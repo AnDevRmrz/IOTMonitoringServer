@@ -34,6 +34,7 @@ def analyze_data():
         .order_by('-base_time')
 
     grouped_data = {}
+    print("Revisando {} datos".format(data))
     for row in data:
         key = (row.station_id, row.measurement_id)
         if key not in grouped_data:
@@ -52,6 +53,7 @@ def analyze_data():
     alerts = 0
     reviewed = 0
 
+    print("Revisando {} grupos de datos".format(grouped_data))
     for key, item in grouped_data.items():
         station_id, measurement_id = key
         values = item['values']
